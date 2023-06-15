@@ -4,10 +4,10 @@ import axios from "axios";
 
 export const parsePdf = (req, res) => {
     const pdfParser = new PDFParser();
-    const { url : pdfUrl,labType } = req.body;
+    const { url : pdfUrl } = req.body;
     
     pdfParser.on('pdfParser_dataReady',  pdfData => {
-        res.status(200).send(generateResponse(labType,JSON.parse(JSON.stringify(pdfData)))); // Move the response here
+        res.status(200).send(generateResponse(pdfUrl,JSON.parse(JSON.stringify(pdfData)))); // Move the response here
     });
 
     pdfParser.on('pdfParser_dataError',  errData => {
@@ -27,24 +27,16 @@ export const parsePdf = (req, res) => {
     });
 };
 
-const generateResponse = (labType,jsonData) => {
+const generateResponse = (url,jsonData) => {
     const result = [];
     try {
         const jsonArray = jsonData.Pages;
 
         const oriTests = [
-            'WBC',
-            'RBC',
-            'Hemoglobin',
-            'Hematocrit',
-            'MCV',
-            'MCH',
-            'MCHC',
             'RDW - CV',
             'Platelet',
             'Neutrophils',
             'Lymphocytes',
-            'Monocytes',
             'Eosinophils',
             'Basophils - %',
             'Absolute Neutrophils',
@@ -52,19 +44,10 @@ const generateResponse = (labType,jsonData) => {
             'Absolute Monocytes',
             'Absolute Eosinophils',
             'Basophils',
-            'Glucose',
-            'BUN',
-            'Creatinine',
             'eGFR (Non-African American)',
             'eGFR (African American)',
-            'BUN/Creatinine Ratio',
-            'Sodium',
-            'Potassium',
-            'Chloride',
             'Bicarbonate',
-            'Calcium',
             'Total Protein',
-            'Albumin',
             'Globulin',
             'Albumin/Globulin Ratio',
             'Total Bilirubin',
@@ -74,14 +57,9 @@ const generateResponse = (labType,jsonData) => {
             'ALP (Alkaline Phosphatase)',
             'GGT',
             'HbA1c, Glycosylated Hemoglobin',
-            'Insulin',
-            'Uric Acid',
-            'Cholesterol, Total',
-            'Triglycerides',
             'HDL, Cholesterol',
             'LDL Calculated',
             'Cholesterol/HDL Ratio',
-            'Lipoprotein (a)',
             'Homocysteine',
             'C-Reactive Protein, Quant',
             'TSH-DXI',
@@ -109,10 +87,7 @@ const generateResponse = (labType,jsonData) => {
             'Vitamin B12, Diluted - DXI',
             'Vitamin B12 - DXI',
             'Folate, Serum - DXI',
-            'PSA, Total - DXI'
-        ];
-
-        const labcorpCommonTests = [
+            'PSA, Total - DXI',
             'WBC',
             'RBC',
             'Hemoglobin',
@@ -122,7 +97,6 @@ const generateResponse = (labType,jsonData) => {
             'MCHC',
             'RDW',
             'Platelets',
-            'Neutrophils',
             'Lymphs',
             'Monocytes',
             'Eos',
@@ -190,59 +164,78 @@ const generateResponse = (labType,jsonData) => {
             'Serum',
         ];
 
-        if (labType == 'labcorps') {
+        let labType = 'Aventus';
 
-            // Iterate over the JSON data
-            for (const obj of jsonArray) {
-                const tests = obj.Texts;
-
-                const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
-                tests.forEach((test,idx,array) => {
-                    const testName = decodeURIComponent(test.R[0].T);
-
-                    if (labcorpCommonTests.includes(testName)) {
-                        let next = array[idx + 1] || null;
-                        let point = decodeURIComponent(next.R[0].T);
-
-                        if (/^(0[0-9])/.test(point)) {
-                            next = array[idx + 2] || null;
-                            point = decodeURIComponent(next.R[0].T) || 'N/A';
-                        }
-                        if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === testName)){
-                            result.push({
-                                test: testName,
-                                value: point
-                            })
-                        }
-                    }
-                });
-            }
-        } else {
-            // Iterate over the JSON data
-            for (const obj of jsonArray) {
-                const tests = obj.Texts;
-
-                const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
-                tests.forEach((test,idx,array) => {
-                    const testName = decodeURIComponent(test.R[0].T);
-                    const next = array[idx + 1] || null;
-
-                    if (oriTests.includes(testName)) {
-                        const point = decodeURIComponent(next.R[0].T);
-                        if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === testName)){
-                            result.push({
-                                test: testName,
-                                value: point
-                            })
-                        }
-                    }
-                });
-            }
+        if (url.toLowerCase().includes('labcorp')) {
+            labType = 'Labcorp';
         }
-        
+
+        if (url.toLowerCase().includes('aventus')) {
+            labType = 'Aventus';
+        }
+
+        let name = '';
+        let age = '';
+        let gender = '';
+        let birth = '';
+        // Iterate over the JSON data
+        for (const obj of jsonArray) {
+            const texts = obj.Texts;
+
+            const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
+            texts.forEach((text,idx,array) => {
+                const parseText = decodeURIComponent(text.R[0].T);
+                if (labType == 'Aventus') {
+                    if (parseText == 'Patient:') {
+                        name = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                    if (parseText == 'Age:') {
+                        age = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                    if (parseText == 'Gender:') {
+                        gender = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                    if (parseText == 'Birth:') {
+                        birth = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                }
+
+                if (labType == 'Labcorp') {
+                    if (parseText == 'Patient Details') {
+                        name = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                    if (parseText == 'Date of Birth:') {
+                        birth = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                    if (parseText == 'Age:') {
+                        age = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                    if (parseText == 'Sex:') {
+                        gender = decodeURIComponent(array[idx + 1].R[0].T);
+                    }
+                }
+                if (oriTests.includes(parseText)) {
+                    let next = array[idx + 1] || null;
+                    let point = decodeURIComponent(next.R[0].T);
+
+                    if (/^(0[0-9])/.test(point)) {
+                        next = array[idx + 2] || null;
+                        point = decodeURIComponent(next.R[0].T) || 'N/A';
+                    }
+                    if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === parseText)){
+                        result.push({
+                            test: parseText,
+                            value: point
+                        })
+                    }
+                }
+            });
+        }
+        const patientDetails = { name, age, gender,birth}
+        return { labType,patientDetails,result }; 
+
     } catch (error) {
         console.error('Error parsing JSON:', error);
     }
 
-    return result;
 }
