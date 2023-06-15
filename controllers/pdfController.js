@@ -4,9 +4,10 @@ import axios from "axios";
 
 export const parsePdf = (req, res) => {
     const pdfParser = new PDFParser();
-    const { url : pdfUrl } = req.body;
+    const { url : pdfUrl,labType } = req.body;
+    
     pdfParser.on('pdfParser_dataReady',  pdfData => {
-        res.status(200).send(generateResponse(JSON.parse(JSON.stringify(pdfData)))); // Move the response here
+        res.status(200).send(generateResponse(labType,JSON.parse(JSON.stringify(pdfData)))); // Move the response here
     });
 
     pdfParser.on('pdfParser_dataError',  errData => {
@@ -26,7 +27,7 @@ export const parsePdf = (req, res) => {
     });
 };
 
-const generateResponse = (jsonData) => {
+const generateResponse = (labType,jsonData) => {
     const result = [];
     try {
         const jsonArray = jsonData.Pages;
@@ -110,26 +111,135 @@ const generateResponse = (jsonData) => {
             'Folate, Serum - DXI',
             'PSA, Total - DXI'
         ];
-        // Iterate over the JSON data
-        for (const obj of jsonArray) {
-            const tests = obj.Texts;
 
-            const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
-            tests.forEach((test,idx,array) => {
-                const testName = decodeURIComponent(test.R[0].T);
-                const next = array[idx + 1] || null;
+        const labcorpCommonTests = [
+            'WBC',
+            'RBC',
+            'Hemoglobin',
+            'Hematocrit',
+            'MCV',
+            'MCH',
+            'MCHC',
+            'RDW',
+            'Platelets',
+            'Neutrophils',
+            'Lymphs',
+            'Monocytes',
+            'Eos',
+            'Basos',
+            'Neutrophils (Absolute)',
+            'Lymphs (Absolute)',
+            'Monocytes(Absolute)',
+            'Eos (Absolute)',
+            'Baso (Absolute)',
+            'Immature Granulocytes',
+            'Immature Grans (Abs)',
+            'Glucose',
+            'BUN',
+            'Creatinine',
+            'eGFR',
+            'BUN/Creatinine Ratio',
+            'Sodium',
+            'Potassium',
+            'Chloride',
+            'Carbon Dioxide, Total',
+            'Calcium',
+            'Protein, Total',
+            'Albumin',
+            'Globulin, Total',
+            'A/G Ratio',
+            'Bilirubin, Total',
+            'Alkaline Phosphatase',
+            'AST (SGOT)',
+            'ALT (SGPT)',
+            'Cholesterol, Total',
+            'Triglycerides',
+            'HDL Cholesterol',
+            'VLDL Cholesterol Cal',
+            'LDL Chol Calc (NIH)',
+            'LDL/HDL Ratio',
+            'TSH',
+            'Triiodothyronine (T3), Free',
+            'T4,Free(Direct)',
+            'LH',
+            'FSH',
+            'Testosterone',
+            'Free Testosterone(Direct)',
+            'Pregnenolone, MS',
+            'Prostate Specific Ag',
+            'Reflex Criteria',
+            'Estrone, Serum, MS',
+            'Ferritin',
+            'Hemoglobin A1c',
+            'Folate (Folic Acid), Serum',
+            'DHEA-Sulfate',
+            'Cortisol',
+            'Prolactin',
+            'Estradiol',
+            'Insulin-Like Growth Factor I',
+            'Vitamin D, 25-Hydroxy',
+            'Lipoprotein (a)',
+            'Homocyst(e)ine',
+            'Uric Acid',
+            'Insulin',
+            'C-Reactive Protein, Cardiac',
+            'Thyroglobulin Antibody',
+            'Vitamin B12',
+            'Progesterone',
+            'Thyroid Peroxidase (TPO) Ab',
+            'Serum',
+        ];
 
-                if (oriTests.includes(testName)) {
-                    const point = decodeURIComponent(next.R[0].T);
-                    if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === testName)){
-                        result.push({
-                            test: testName,
-                            value: point
-                        })
+        if (labType == 'labcorps') {
+
+            // Iterate over the JSON data
+            for (const obj of jsonArray) {
+                const tests = obj.Texts;
+
+                const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
+                tests.forEach((test,idx,array) => {
+                    const testName = decodeURIComponent(test.R[0].T);
+
+                    if (labcorpCommonTests.includes(testName)) {
+                        let next = array[idx + 1] || null;
+                        let point = decodeURIComponent(next.R[0].T);
+
+                        if (/^(0[0-9])/.test(point)) {
+                            next = array[idx + 2] || null;
+                            point = decodeURIComponent(next.R[0].T) || 'N/A';
+                        }
+                        if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === testName)){
+                            result.push({
+                                test: testName,
+                                value: point
+                            })
+                        }
                     }
-                }
-            });
+                });
+            }
+        } else {
+            // Iterate over the JSON data
+            for (const obj of jsonArray) {
+                const tests = obj.Texts;
+
+                const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
+                tests.forEach((test,idx,array) => {
+                    const testName = decodeURIComponent(test.R[0].T);
+                    const next = array[idx + 1] || null;
+
+                    if (oriTests.includes(testName)) {
+                        const point = decodeURIComponent(next.R[0].T);
+                        if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === testName)){
+                            result.push({
+                                test: testName,
+                                value: point
+                            })
+                        }
+                    }
+                });
+            }
         }
+        
     } catch (error) {
         console.error('Error parsing JSON:', error);
     }
