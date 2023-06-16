@@ -209,25 +209,25 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
             try {
                 const texts = obj.Texts;
                 const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
-                texts.forEach((text,idx,array) => {
+                for(const text of texts) {
                     const parseText = decodeURIComponent(text.R[0].T);
 
                     if (parseText.includes('Laboratory Corporation of America')) {
                         labType = 'Labcorp';
-                        return;
+                        break;
                     }
 
                     if (parseText.includes('ABL MEDICAL CARE, LLC')) {
                         labType = 'Aventus';
-                        return;
+                        break;
                     }
-                })
-                if (labType == 'Labcorp') {
+                }
+                if (labType === 'Labcorp') {
                     texts.forEach((text,idx,array) => {
                         const parseText = decodeURIComponent(text.R[0].T);
     
-                        if (labType == 'Labcorp') {
-                            if (parseText == 'Patient Details') {
+                        if (labType === 'Labcorp') {
+                            if (parseText === 'Patient Details') {
                                 const name = decodeURIComponent(array[idx + 1].R[0].T);
                                 const nameParts = name.split(',');
                                 firstName = nameParts[1].trim();
@@ -254,13 +254,13 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
                             }
                         }
                     });
-                } else if (labType = 'Aventus') {
+                } else if (labType === 'Aventus') {
                     texts.forEach((text,idx,array) => {
                         const parseText = decodeURIComponent(text.R[0].T);
                         const next = array[idx + 1] || null;
         
-                        if (labType == 'Aventus') {
-                            if (parseText == 'Patient:') {
+                        if (labType === 'Aventus') {
+                            if (parseText === 'Patient:') {
                                 const name = decodeURIComponent(array[idx + 1].R[0].T);
                                 const nameParts = name.split(',');
                                 firstName = nameParts[1].trim();
@@ -283,9 +283,9 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
         
                     })
                 } else {
-                    throw new Error('no matching lab type found.');
+                    throw new Error('no matching lab report type found.');
                 }
-            }catch (err) {
+            } catch (err) {
                 return { status : false, msg : err };
             }
         }
