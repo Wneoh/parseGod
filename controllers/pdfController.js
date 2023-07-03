@@ -197,6 +197,7 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
             'Serum',
         ];
 
+        let collectionDate = '';
         let labType = '';
         let firstName = '';
         let lastName = '';
@@ -211,7 +212,7 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
                 const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
                 for(const text of texts) {
                     const parseText = decodeURIComponent(text.R[0].T);
-
+                    
                     if (parseText.includes('Laboratory Corporation of America')) {
                         labType = 'Labcorp';
                         break;
@@ -237,6 +238,9 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
                                     throw new Error('First Name and Last Name not match.');
                                 }
                             }
+                        }
+                        if (collectionDate =='' && parseText.includes("Date Collected")) {
+                            collectionDate = decodeURIComponent(array[idx + 1].R[0].T);
                         }
                         if (labcorpCommonTests.includes(parseText)) {
                             let next = array[idx + 1] || null;
@@ -271,6 +275,10 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
                             }
                         }
     
+                        if (collectionDate =='' && parseText.includes("Collection Date")) {
+                            collectionDate = decodeURIComponent(array[idx + 1].R[0].T);
+                        }
+
                         if (oriTests.includes(parseText)) {
                             const point = decodeURIComponent(next.R[0].T);
                             if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === parseText)){
@@ -289,7 +297,7 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
                 return { status : false, msg : err };
             }
         }
-        return { status : true, data : { labType,result} }; 
+        return { status : true, data : { labType,collectionDate,result} }; 
 
     } catch (error) {
         return error;
