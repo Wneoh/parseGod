@@ -1,13 +1,14 @@
-import fs from "fs";
 import PDFParser from "pdf2json";
 import axios from "axios";
 
 export const parsePdf = (req, res) => {
     const pdfParser = new PDFParser();
-    const { url : pdfUrl ,firstName, lastName} = req.body;
+    const { url : pdfUrl , firstName, lastName, gender, birthday, profileMustMatch } = req.body;
     
     pdfParser.on('pdfParser_dataReady',  pdfData => {
-        const result = generateResponse(firstName, lastName, JSON.parse(JSON.stringify(pdfData)));
+        const result = generateResponse({
+            validatingFirstname: firstName, validatingLastname: lastName, validatingGender: gender, validatingDOB: birthday
+        }, profileMustMatch, JSON.parse(JSON.stringify(pdfData)));
 
         if (result.status) {
             res.status(200).send(result.data);
@@ -37,12 +38,12 @@ export const parsePdf = (req, res) => {
     });
 };
 
-const generateResponse = (requestFirstName,requestLastName,jsonData) => {
+const generateResponse = ({validatingFirstname, validatingLastname, validatingGender, validatingDOB}, profileMustMatch, jsonData) => {
     const result = [];
     try {
         const jsonArray = jsonData.Pages;
 
-        const oriTests = [
+        const aventusTests = [
             'WBC',
             'RBC',
             'Hemoglobin',
@@ -201,7 +202,6 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
         let labType = '';
         let firstName = '';
         let lastName = '';
-        let age = '';
         let gender = '';
         let birth = '';
 
@@ -233,13 +233,14 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
                                 const nameParts = name.split(',');
                                 firstName = nameParts[1].trim();
                                 lastName = nameParts[0].trim();
-    
-                                if (firstName !== requestFirstName || lastName !== requestLastName) {
-                                    throw new Error('First Name and Last Name not match.');
+                                if (profileMustMatch) {
+                                    if (firstName !== validatingFirstname || lastName !== validatingLastname) {
+                                        throw new Error('First Name and Last Name not match.');
+                                    }
                                 }
                             }
                         }
-                        if (collectionDate =='' && parseText.includes("Date Collected")) {
+                        if (collectionDate === '' && parseText.includes("Date Collected")) {
                             collectionDate = decodeURIComponent(array[idx + 1].R[0].T);
                         }
                         if (labcorpCommonTests.includes(parseText)) {
@@ -269,17 +270,19 @@ const generateResponse = (requestFirstName,requestLastName,jsonData) => {
                                 const nameParts = name.split(',');
                                 firstName = nameParts[1].trim();
                                 lastName = nameParts[0].trim();
-                                if (firstName !== requestFirstName || lastName !== requestLastName) {
-                                    throw new Error('First Name and Last Name not match.');
+                                if (profileMustMatch) {
+                                    if (firstName !== validatingFirstname || lastName !== validatingLastname) {
+                                        throw new Error('First Name and Last Name not match.');
+                                    }
                                 }
                             }
                         }
     
-                        if (collectionDate =='' && parseText.includes("Collection Date")) {
+                        if (collectionDate === '' && parseText.includes("Collection Date")) {
                             collectionDate = decodeURIComponent(array[idx + 1].R[0].T);
                         }
 
-                        if (oriTests.includes(parseText)) {
+                        if (aventusTests.includes(parseText)) {
                             const point = decodeURIComponent(next.R[0].T);
                             if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === parseText)){
                                 result.push({
