@@ -118,6 +118,9 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
             'Ferritin',
             'Vitamin B12, Diluted - DXI',
             'Folate, Serum - DXI',
+            'PSA, Total - DXI',
+            'Testosterone - DXI M/F SUPP',
+            'Vitamin B12 - DXI',
         ];
 
         const labcorpCommonTests = [
@@ -253,7 +256,7 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
                             }
                             if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === parseText)){
                                 result.push({
-                                    test: parseText,
+                                    test: parseText === 'Serum' ? 'Sex Horm Binding Glob, Serum' : parseText,
                                     value: point
                                 })
                             }
