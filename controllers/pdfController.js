@@ -303,7 +303,7 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
                 return { status : false, msg : err };
             }
         }
-        return { status : true, data : { labType,collectionDate,result} }; 
+        return { status : true, data : { labType, collectionDate: collectionDate.trim(), result} };
 
     } catch (error) {
         return error;
