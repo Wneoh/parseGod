@@ -205,9 +205,10 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
         let labType = '';
         let firstName = '';
         let lastName = '';
-        let gender = '';
-        let birth = '';
-
+        let testo;
+        let album;
+        let shbg;
+        let firstPush = true;
         // Iterate over the JSON data
         for (const obj of jsonArray) {
             try {
@@ -254,6 +255,15 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
                                 next = array[idx + 2] || null;
                                 point = decodeURIComponent(next.R[0].T) || 'N/A';
                             }
+                            if (parseText.toLowerCase() === "testosterone") {
+                                testo = point;
+                            }
+                            if (parseText.toLowerCase() === "albumin") {
+                                album = point;
+                            }
+                            if (parseText.toLowerCase() === "serum") {
+                                shbg = point;
+                            }  
                             if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === parseText)){
                                 result.push({
                                     test: parseText === 'Serum' ? 'Sex Horm Binding Glob, Serum' : parseText,
@@ -262,6 +272,14 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
                             }
                         }
                     });
+                    if ((shbg && album && testo) && firstPush) {
+                        const bioavailableTesto = calculateBioavailableTestosterone(album, shbg, testo);
+                        result.push({
+                            test: "Bioavailable Testosterone",
+                            value: bioavailableTesto
+                        })
+                        firstPush = false;
+                    }
                 } else if (labType === 'Aventus') {
                     texts.forEach((text,idx,array) => {
                         const parseText = decodeURIComponent(text.R[0].T);
@@ -294,7 +312,6 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
                                 })
                             }
                         }
-        
                     })
                 } else {
                     throw new Error('no matching lab report type found.');
@@ -308,5 +325,47 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
     } catch (error) {
         return error;
     }
+}
 
+function calculateBioavailableTestosterone(album, shbg, testo) {
+    // g/dL,nmol/L,ng/dL
+    var kt=1000000000
+    var wortel=0
+    var ftesto=0
+
+    const testo2 = testo / 2.8 * 1e-10
+    shbg=shbg/10
+    const shbg2=shbg * 1e-8
+    const fa=((36000*album*(1.45 * .0001))+1) *kt
+    const fa1= ((36000*album*(1.45 * .0001))+1)
+    const fb=kt*(shbg2-testo2)+fa1
+    const fc=-testo2
+    wortel=Math.sqrt(fb*fb -4 * fa *fc)
+    ftesto= (-fb +wortel)/(2*fa)
+    const ftestop=(ftesto * 100)/testo2
+    const ftc=(ftestop/100) * testo
+    const biot = ftc * fa1
+   
+    return biot ? roundoff(biot) + " ng/dL" : '0';
+}
+
+
+function roundoff(value)
+{
+      var value4= "" + Math.round(value)
+      var bonus2=value4.length + 1
+      var bonus=0
+      if (value <100) {bonus=bonus+1}
+      if (value <10) {bonus=bonus+1}
+      if (value <1) {bonus=bonus+1}
+      if (value <0.1) {bonus=bonus+1}
+      if (value <0.01) {bonus=bonus+1}
+      if (value <0.001) {bonus=bonus+1}
+      if (value <0.0001) {bonus=bonus+1}
+      bonus2=bonus2+bonus
+
+      var whole= Math.round(value * Math.pow(10, bonus));
+      var whole2= ""+ whole * Math.pow(10, -1*bonus);
+      var whole2= whole2.substr(0,bonus2)
+      return whole2;
 }
