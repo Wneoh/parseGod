@@ -124,6 +124,8 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
         ];
 
         const labcorpCommonTests = [
+            'eGFR If NonAfricn Am',
+            'eGFR If Africn Am',
             'WBC',
             'RBC',
             'Hemoglobin',
