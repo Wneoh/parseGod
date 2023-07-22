@@ -348,7 +348,7 @@ function calculateBioavailableTestosterone(album, shbg, testo) {
     const ftc=(ftestop/100) * testo
     const biot = ftc * fa1
    
-    return biot ? roundoff(biot) + " ng/dL" : '0';
+    return biot ? roundoff(biot) : '0';
 }
 
 
