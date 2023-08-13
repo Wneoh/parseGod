@@ -1,36 +1,26 @@
-import PDFParser from "pdf2json";
 import axios from "axios";
+import {PDFExtract} from 'pdf.js-extract';
 
 export const parsePdf = (req, res) => {
-    const pdfParser = new PDFParser();
     const { url : pdfUrl , firstName, lastName, gender, birthday, profileMustMatch } = req.body;
-    
-    pdfParser.on('pdfParser_dataReady',  pdfData => {
-        const result = generateResponse({
-            validatingFirstname: firstName, validatingLastname: lastName, validatingGender: gender, validatingDOB: birthday
-        }, profileMustMatch, JSON.parse(JSON.stringify(pdfData)));
-
-        if (result.status) {
-            res.status(200).send(result.data);
-        } else {
-            const errorMessage = String(result.msg).split('\n')[0];
-            res.status(500).send({
-                msg : errorMessage
-            });
-        }
-        
-    });
-
-    pdfParser.on('pdfParser_dataError',  errData => {
-        console.error(errData.parserError);
-        res.status(500).send({ error: "Error parsing PDF" });
-    });
+    const pdfExtract = new PDFExtract();
 
     // Load the PDF from the URL
     axios.get(pdfUrl, { responseType: "arraybuffer" })
     .then(response => {
         const pdfBuffer = Buffer.from(response.data, "binary");
-        pdfParser.parseBuffer(pdfBuffer);
+        pdfExtract.extractBuffer(pdfBuffer)
+        .then(data => { 
+            const result = generateResponse({
+                validatingFirstname: firstName, validatingLastname: lastName, validatingGender: gender, validatingDOB: birthday
+            }, profileMustMatch, data);
+            if (result.status) {
+                res.status(200).send(result.data) 
+            } else {
+                res.status(500).send({ error : result.msg}) 
+            }
+        })
+        .catch(err=> console.log(err));
     })
     .catch(error => {
         console.error("Error fetching PDF from URL:", error);
@@ -41,7 +31,7 @@ export const parsePdf = (req, res) => {
 const generateResponse = ({validatingFirstname, validatingLastname, validatingGender, validatingDOB}, profileMustMatch, jsonData) => {
     const result = [];
     try {
-        const jsonArray = jsonData.Pages;
+        const pages = jsonData.pages;
 
         const aventusTests = [
             'WBC',
@@ -211,121 +201,109 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
         let album;
         let shbg;
         let firstPush = true;
-        // Iterate over the JSON data
-        for (const obj of jsonArray) {
-            try {
-                const texts = obj.Texts;
-                const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
-                for(const text of texts) {
-                    const parseText = decodeURIComponent(text.R[0].T);
-                    
-                    if (parseText.includes('Laboratory Corporation of America')) {
-                        labType = 'Labcorp';
-                        break;
-                    }
 
-                    if (parseText.includes('ABL MEDICAL CARE, LLC')) {
-                        labType = 'Aventus';
-                        break;
-                    }
+        // Iterate over pages
+        pages.forEach(page => {
+            const content = page.content;
+            const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
+            for (const text of content) {
+                const targetText = text.str;                    
+                if (targetText.includes('Laboratory Corporation of America')) {
+                    labType = 'Labcorp';
+                    break;
                 }
-                if (labType === 'Labcorp') {
-                    texts.forEach((text,idx,array) => {
-                        const parseText = decodeURIComponent(text.R[0].T);
-    
-                        if (labType === 'Labcorp') {
-                            if (parseText === 'Patient Details') {
-                                const name = decodeURIComponent(array[idx + 1].R[0].T);
-                                const nameParts = name.split(',');
-                                firstName = nameParts[1].trim();
-                                lastName = nameParts[0].trim();
-                                if (profileMustMatch) {
-                                    if (firstName !== validatingFirstname || lastName !== validatingLastname) {
-                                        throw new Error('First Name and Last Name not match.');
-                                    }
-                                }
-                            }
-                        }
-                        if (collectionDate === '' && parseText.includes("Date Collected")) {
-                            collectionDate = decodeURIComponent(array[idx + 1].R[0].T);
-                        }
-                        if (labcorpCommonTests.includes(parseText)) {
-                            let next = array[idx + 1] || null;
-                            let point = decodeURIComponent(next.R[0].T);
-    
-                            if (/^(0[0-9])/.test(point)) {
-                                next = array[idx + 2] || null;
-                                point = decodeURIComponent(next.R[0].T) || 'N/A';
-                            }
-                            if (parseText.toLowerCase() === "testosterone") {
-                                testo = point;
-                            }
-                            if (parseText.toLowerCase() === "albumin") {
-                                album = point;
-                            }
-                            if (parseText.toLowerCase() === "serum") {
-                                shbg = point;
-                            }  
-                            if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === parseText)){
-                                result.push({
-                                    test: parseText === 'Serum' ? 'Sex Horm Binding Glob, Serum' : parseText,
-                                    value: point
-                                })
-                            }
-                        }
-                    });
-                    if ((shbg && album && testo) && firstPush) {
-                        const bioavailableTesto = calculateBioavailableTestosterone(album, shbg, testo);
-                        result.push({
-                            test: "Bioavailable Testosterone",
-                            value: bioavailableTesto
-                        })
-                        firstPush = false;
-                    }
-                } else if (labType === 'Aventus') {
-                    texts.forEach((text,idx,array) => {
-                        const parseText = decodeURIComponent(text.R[0].T);
-                        const next = array[idx + 1] || null;
-        
-                        if (labType === 'Aventus') {
-                            if (parseText === 'Patient:') {
-                                const name = decodeURIComponent(array[idx + 1].R[0].T);
-                                const nameParts = name.split(',');
-                                firstName = nameParts[1].trim();
-                                lastName = nameParts[0].trim();
-                                if (profileMustMatch) {
-                                    if (firstName !== validatingFirstname || lastName !== validatingLastname) {
-                                        throw new Error('First Name and Last Name not match.');
-                                    }
-                                }
-                            }
-                        }
-    
-                        if (collectionDate === '' && parseText.includes("Collection Date")) {
-                            collectionDate = decodeURIComponent(array[idx + 1].R[0].T);
-                        }
-
-                        if (aventusTests.includes(parseText)) {
-                            const point = decodeURIComponent(next.R[0].T);
-                            if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === parseText)){
-                                result.push({
-                                    test: parseText,
-                                    value: point
-                                })
-                            }
-                        }
-                    })
-                } else {
-                    throw new Error('no matching lab report type found.');
+                if (targetText.includes('ABL MEDICAL CARE, LLC')) {
+                    labType = 'Aventus';
+                    break;
                 }
-            } catch (err) {
-                return { status : false, msg : err };
             }
-        }
+            if (labType === 'Aventus') {
+                content.forEach((text,idx) => {
+                    const targetText = text.str;                    
+                    if (targetText.trim() === 'Patient:') {
+                        const name = content[idx + 2].str;
+                        const nameParts = name.split(',');
+                        firstName = nameParts[1].trim();
+                        lastName = nameParts[0].trim();
+                        if (profileMustMatch) {
+                            if (firstName !== validatingFirstname || lastName !== validatingLastname) {
+                                throw new Error('First Name and Last Name not match.');
+                            }
+                        }
+                    }
+
+                    if (collectionDate === '' && targetText.includes("Collection Date:")) {
+                        collectionDate = content[idx + 2].str;
+                    }
+
+                    if (aventusTests.includes(targetText.trim())) {
+                        const point = content[idx + 2].str
+                        if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === targetText)){
+                            result.push({
+                                test: targetText,
+                                value: point
+                            })
+                        }
+                    }
+    
+                })
+            } else if (labType === 'Labcorp') {
+                content.forEach((text,idx) => {
+                    const targetText = text.str;                    
+                    if (targetText.trim() === 'Patient Details') {
+                        const name = content[idx + 2].str;
+                        const nameParts = name.split(',');
+                        firstName = nameParts[1].trim();
+                        lastName = nameParts[0].trim();
+                        if (profileMustMatch) {
+                            if (firstName !== validatingFirstname || lastName !== validatingLastname) {
+                                throw new Error('First Name and Last Name not match.');
+                            }
+                        }
+                    }
+
+                    if (collectionDate === '' && targetText.includes("Date Collected:")) {
+                        collectionDate = content[idx + 2].str;
+                    }
+
+                    if (labcorpCommonTests.includes(targetText.trim())) {
+                        const point = content[idx + 4].str
+
+                        if (targetText.trim() === "Testosterone") {
+                            testo = point;
+                        }
+                        if (targetText.trim() === "Albumin") {
+                            album = point;
+                        }
+                        if (targetText.trim() === "Serum" && isDecimalOrNumberWithRange.test(point)) {
+                            shbg = point;
+                        }  
+
+                        if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === targetText)){
+                            result.push({
+                                test: targetText === 'Serum' ? 'Sex Horm Binding Glob, Serum' : targetText,
+                                value: point
+                            })
+                        }
+                    }
+    
+                })
+                if ((shbg && album && testo) && firstPush) {
+                    const bioavailableTesto = calculateBioavailableTestosterone(album, shbg, testo);
+                    result.push({
+                        test: "Bioavailable Testosterone",
+                        value: bioavailableTesto
+                    })
+                    firstPush = false;
+                }
+            } else {
+                throw new Error('no matching lab report type found.');
+            }
+        });        
         return { status : true, data : { labType, collectionDate: collectionDate.trim(), result} };
 
-    } catch (error) {
-        return error;
+    } catch (err) {
+        return { status : false, msg : err.message };
     }
 }
 
