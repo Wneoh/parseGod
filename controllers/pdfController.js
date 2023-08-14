@@ -205,7 +205,7 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
         // Iterate over pages
         pages.forEach(page => {
             const content = page.content;
-            const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+$/;
+            const isDecimalOrNumberWithRange = /^-?\d+(\.\d+)?|<[0-9]+|>[0-9]+|< [0-9]+|>[0-9]+$/;
             for (const text of content) {
                 const targetText = text.str;                    
                 if (targetText.includes('Laboratory Corporation of America')) {
@@ -237,7 +237,10 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
                     }
 
                     if (aventusTests.includes(targetText.trim())) {
-                        const point = content[idx + 2].str
+                        let point = content[idx + 2].str
+                        if (targetText.trim() == "Estrone-MSS" || targetText.trim() == "Pregnenolone- MSS" ) {
+                            point = content[idx + 5].str
+                        }
                         if (isDecimalOrNumberWithRange.test(point) && !result.find(r => r.test === targetText)){
                             result.push({
                                 test: targetText,
@@ -267,8 +270,11 @@ const generateResponse = ({validatingFirstname, validatingLastname, validatingGe
                     }
 
                     if (labcorpCommonTests.includes(targetText.trim())) {
-                        const point = content[idx + 4].str
+                        let point = content[idx + 4].str
 
+                        if (targetText.trim() === "LDL Chol Calc (NIH)" || targetText.trim() === "eGFR If NonAfricn Am" || targetText.trim() === "eGFR If Africn Am") {
+                            point = content[idx + 2].str
+                        }
                         if (targetText.trim() === "Testosterone") {
                             testo = point;
                         }
